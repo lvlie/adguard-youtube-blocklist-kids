@@ -51,7 +51,9 @@ repos:
         # would depend on whatever the machine (or the CI runner) happens to have.
         language: python
         additional_dependencies: ["pyyaml>=6.0.3", "jinja2>=3.1.6"]
-        files: '^homeassistant/packages/.*\.yaml$'
+        # Only the rest_command package: this checker is specific to it.
+        # youtube_kids_native.yaml is covered by tests/test_native_package.py.
+        files: '^homeassistant/packages/adguard_youtube_kids\.yaml$'
         pass_filenames: true
 
       - id: pytest
