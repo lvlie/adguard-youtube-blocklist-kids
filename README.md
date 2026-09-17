@@ -189,6 +189,19 @@ Paste it into the `sections:` list of a view via the dashboard's three-dot menu 
 The status line is a markdown card — the only built-in card that renders templates, and the reason the dashboard can
 say "Blocked" instead of showing a raw `on`.
 
+> [!IMPORTANT]
+> **If the kids have their own Home Assistant logins, put this section on an admin-only dashboard.** Set
+> **Admin only** on the dashboard (Settings → Dashboards → ⋮ → Edit), i.e. `require_admin: true`, so it stays out of
+> their sidebar entirely. Dropping these buttons on a shared family dashboard hands them the off switch.
+>
+> Be clear about what that buys you, though: `require_admin` controls *visibility*, not permission. It hides the
+> dashboard; it does not stop a logged-in non-admin from calling `script.youtube_kids_allow` over the REST or
+> WebSocket API. The only real boundary is an account they cannot log in to at all.
+>
+> Then again — if your kid reverse-engineers a service call to get YouTube back, give them YouTube. Anyone who can
+> find their way to `script.youtube_kids_allow` found the DNS-over-HTTPS toggle in their browser settings weeks ago,
+> and is only doing this for the sport.
+
 #### Example: block on school nights
 
 ```yaml

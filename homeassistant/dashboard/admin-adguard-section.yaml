@@ -11,6 +11,11 @@
 #
 # Reading the status: "Blocked" means the blocklist is enabled in AdGuard Home,
 # so YouTube does not resolve for the Kids client.
+#
+# If the kids have their own Home Assistant logins, put this on a dashboard with
+# require_admin: true. That hides it from their sidebar -- but it is visibility,
+# not permission: a non-admin account can still call these scripts through the
+# API. See the README for what that does and does not protect.
 
 type: grid
 cards:
