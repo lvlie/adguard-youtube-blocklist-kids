@@ -8,6 +8,10 @@ the client you named `Kids` — and leaves every other device on the network unt
 the list on and off from Home Assistant, so "no YouTube after dinner" becomes a button, a timed allowance, an
 automation or a voice command.
 
+It is built for parents who want YouTube to be something handed out deliberately and on a clock, rather than a
+switch that is either always on or gone for good — most useful with younger kids, and entirely at your own
+discretion as to when and how much. Though if you are reading this, you had probably worked that out already.
+
 ```text
 ||youtube.com^$client='Kids',important
 ```
