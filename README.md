@@ -182,19 +182,9 @@ section for a `type: sections` view: a status line, the allowance timer (shown o
 
 Paste it into the `sections:` list of a view via the dashboard's three-dot menu → **Raw configuration editor**.
 
-```text
-┌──────────────────────────────────────────┐
-│  AdGuard — YouTube for Kids              │
-│                                          │
-│  ▶️ Allowed until 17:01                  │
-│  Blocked again automatically when the    │
-│  allowance runs out.                     │
-│                                          │
-│  ⏳ Allowance            0:58:27         │
-│                                          │
-│  [ ▶ Allow ]  [ +30 min ]  [ ⛔ Block ]  │
-└──────────────────────────────────────────┘
-```
+![AdGuard section on the Admin dashboard: status line, allowance countdown, and the three buttons][dashboard-screenshot]
+
+[dashboard-screenshot]: docs/dashboard-admin-section.png
 
 The status line is a markdown card — the only built-in card that renders templates, and the reason the dashboard can
 say "Blocked" instead of showing a raw `on`.
@@ -328,6 +318,7 @@ homeassistant/packages/youtube_kids_native.yaml      option A: AdGuard integrati
 homeassistant/packages/adguard_youtube_kids.yaml     option B: rest_command + REST sensor + switch
 homeassistant/dashboard/admin-adguard-section.yaml   dashboard section for the controls
 homeassistant/secrets.example.yaml                   credentials for option B
+docs/dashboard-admin-section.png                     screenshot used by the README
 scripts/validate_blocklist.py                        syntax + client-scope validator
 scripts/check_ha_package.py                          parses the option B package, renders its templates
 tests/                                               tests for both scripts and for what they check
