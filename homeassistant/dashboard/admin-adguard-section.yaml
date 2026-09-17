@@ -1,0 +1,94 @@
+---
+# A "sections" view section for the YouTube-for-Kids controls.
+#
+# This is the section that lives on the Admin dashboard: a status line, the
+# allowance timer (only while one is running), and the three buttons.
+#
+# To use it, edit your dashboard -> three-dot menu -> "Raw configuration
+# editor", and paste this block into the `sections:` list of a
+# `type: sections` view. It expects the entities from
+# ../packages/youtube_kids_native.yaml.
+#
+# Reading the status: "Blocked" means the blocklist is enabled in AdGuard Home,
+# so YouTube does not resolve for the Kids client.
+#
+# If the kids have their own Home Assistant logins, put this on a dashboard with
+# require_admin: true. That hides it from their sidebar -- but it is visibility,
+# not permission: a non-admin account can still call these scripts through the
+# API. See the README for what that does and does not protect.
+
+type: grid
+cards:
+  - type: heading
+    heading: AdGuard — YouTube for Kids
+    heading_style: title
+    icon: mdi:youtube
+
+  # The markdown card is the only built-in card that renders templates, which
+  # is what turns "input_boolean is on" into something a human can read.
+  - type: markdown
+    grid_options:
+      columns: full
+    entity_id:
+      - input_boolean.youtube_blocked_for_kids
+      - timer.youtube_allowance_kids
+    content: >-
+      {% if is_state('input_boolean.youtube_blocked_for_kids', 'on') %}
+
+      ## 🚫 Blocked
+
+      YouTube does not resolve for the **Kids** client.
+
+      {% elif is_state('timer.youtube_allowance_kids', 'active') %}
+
+      ## ▶️ Allowed until {{ (state_attr('timer.youtube_allowance_kids',
+      'finishes_at') | as_datetime | as_local).strftime('%H:%M') }}
+
+      Blocked again automatically when the allowance runs out.
+
+      {% else %}
+
+      ## ▶️ Allowed
+
+      No time limit set — YouTube stays available until you block it.
+
+      {% endif %}
+
+  # Only shown while an allowance is actually running.
+  - type: conditional
+    conditions:
+      - condition: state
+        entity: timer.youtube_allowance_kids
+        state_not: idle
+    card:
+      type: tile
+      entity: timer.youtube_allowance_kids
+      name: Allowance
+      icon: mdi:timer-sand
+      grid_options:
+        columns: full
+
+  - type: grid
+    columns: 3
+    square: false
+    cards:
+      - type: button
+        name: Allow
+        icon: mdi:play-circle
+        tap_action:
+          action: perform-action
+          perform_action: script.youtube_kids_allow
+      - type: button
+        name: +30 min
+        icon: mdi:timer-plus
+        tap_action:
+          action: perform-action
+          perform_action: script.youtube_kids_extend_30
+      - type: button
+        name: Block
+        icon: mdi:block-helper
+        tap_action:
+          action: perform-action
+          perform_action: script.youtube_kids_block
+          confirmation:
+            text: Block YouTube for the Kids client now?

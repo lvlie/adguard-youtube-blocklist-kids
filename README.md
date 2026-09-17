@@ -5,8 +5,12 @@
 
 An [AdGuard Home](https://github.com/AdguardTeam/AdGuardHome) blocklist that blocks YouTube **for one client only** —
 the client you named `Kids` — and leaves every other device on the network untouched. It also documents how to flip
-the list on and off from Home Assistant, so "no YouTube after dinner" becomes a switch, an automation or a voice
-command.
+the list on and off from Home Assistant, so "no YouTube after dinner" becomes a button, a timed allowance, an
+automation or a voice command.
+
+It is built for parents who want YouTube to be something handed out deliberately and on a clock, rather than a
+switch that is either always on or gone for good — most useful with younger kids, and entirely at your own
+discretion as to when and how much. Though if you are reading this, you had probably worked that out already.
 
 ```text
 ||youtube.com^$client='Kids',important
@@ -98,15 +102,34 @@ other device it should still work. **Query log** shows the matching rule and the
 
 ## Toggling the list from Home Assistant
 
-The official [AdGuard Home integration](https://www.home-assistant.io/integrations/adguard/) exposes switches for
-protection, filtering, safe search and parental control — but **not** for an individual filter list. So this repo
-ships a small package that calls the AdGuard Home REST API directly:
-`POST /control/filtering/set_url` with `{"data": {"enabled": true|false, …}}`.
+Two ways, depending on whether you run the AdGuard Home integration.
 
-### Install the package
+| | Option A — AdGuard integration | Option B — REST commands |
+| --- | --- | --- |
+| Needs | The AdGuard Home integration | AdGuard URL + admin password in `secrets.yaml` |
+| Several AdGuard servers | Handled — every loaded instance is updated | One `rest_command` per server |
+| Reads the real state back | No — Home Assistant is the source of truth | Yes, via a REST sensor |
+| Credentials | Already held by the integration | Duplicated into `secrets.yaml` |
 
-1. Copy [`homeassistant/packages/adguard_youtube_kids.yaml`](homeassistant/packages/adguard_youtube_kids.yaml) to
-   `<config>/packages/adguard_youtube_kids.yaml`.
+### Option A — the AdGuard Home integration (recommended)
+
+The integration's switches cover protection, filtering, safe search and parental control, and none of them touch an
+individual filter list. Its **services** do: `adguard.enable_url` and `adguard.disable_url` each take a blocklist
+URL, which is exactly the handle this list needs.
+
+They apply to *every loaded AdGuard config entry*, so a primary/replica pair stays in step with no extra work:
+
+```python
+# homeassistant/components/adguard/__init__.py
+async def enable_url(call: ServiceCall) -> None:
+    for adguard in _get_adguard_instances(call.hass):
+        await adguard.filtering.enable_url(allowlist=False, url=call.data[CONF_URL])
+```
+
+#### Install
+
+1. Copy [`homeassistant/packages/youtube_kids_native.yaml`](homeassistant/packages/youtube_kids_native.yaml) to
+   `<config>/packages/youtube_kids_native.yaml`.
 2. Make sure `configuration.yaml` loads packages:
 
    ```yaml
@@ -114,34 +137,76 @@ ships a small package that calls the AdGuard Home REST API directly:
      packages: !include_dir_named packages
    ```
 
-3. Add your AdGuard Home login to `<config>/secrets.yaml`
-   (see [`homeassistant/secrets.example.yaml`](homeassistant/secrets.example.yaml)):
+3. If you forked this repo, change the blocklist URL in the package.
+4. **Developer tools → YAML → Check configuration**, then restart Home Assistant.
 
-   ```yaml
-   adguard_username: admin
-   adguard_password: your-adguard-password
-   ```
+No credentials go in this package — the integration already has them.
 
-4. Edit the two `EDIT ME` values at the top of the package: your AdGuard Home base URL
-   (`http://homeassistant.local:3000` by default) and, if you forked this repo, the blocklist URL.
-5. **Developer tools → YAML → Check configuration**, then restart Home Assistant.
+Everything in the package can equally be created from the UI (Settings → Devices & Services → Helpers, plus
+Scripts and Automations). Do one or the other, not both, or you get duplicate entities.
 
-### What you get
+#### What you get
 
 | Entity | Purpose |
 | --- | --- |
-| `switch.youtube_blocked_for_kids` | **On = YouTube is blocked** for the Kids client. Off = it resolves normally. |
-| `sensor.adguard_youtube_kids_filter` | Raw state of the list in AdGuard Home (`on` / `off` / `unknown`), polled every 60 s. |
-| `rest_command.adguard_youtube_kids_filter_set` | Enables/disables the list; takes `enabled: true\|false`. |
-| `rest_command.adguard_filters_refresh` | Forces AdGuard Home to re-download its lists. |
+| `input_boolean.youtube_blocked_for_kids` | The toggle. **On = YouTube is blocked** for the Kids client. |
+| `timer.youtube_allowance_kids` | Runs while a temporary allowance is active. `restore: true`, so it survives a restart. |
+| `script.youtube_kids_allow` | Allow with no time limit; cancels any allowance. |
+| `script.youtube_kids_block` | Block now; cancels any allowance. |
+| `script.youtube_kids_extend_30` | +30 minutes. Twice gives 60, three times 90. |
+| `automation.kids_sync_youtube_blocklist_to_adguard` | Pushes the toggle into AdGuard; re-asserts on HA start. |
+| `automation.kids_block_youtube_when_the_allowance_timer_finishes` | Re-blocks when the allowance runs out. |
 
-`unknown` on the sensor (and an unavailable switch) means AdGuard Home has no list with that exact URL — check for a
-typo, or that you updated the URL in the package after forking.
+The toggle is the source of truth: Home Assistant writes to AdGuard, never the other way round. If you flip the list
+in AdGuard's own UI, Home Assistant will not notice until the next restart or toggle. Option B is the one that reads
+state back.
 
-After the first install, reload just this config with **Developer tools → Actions** → `rest.reload`,
-`rest_command.reload` and `template.reload` instead of restarting.
+#### Two things that will bite you
 
-### Example: block YouTube on school nights
+Both are why `script.youtube_kids_extend_30` looks the way it does:
+
+- **`timer.change` cannot extend a timer past its configured duration.** A second press of a +30 button on a
+  30-minute timer fails with `Not possible to change timer ... beyond duration`. Use `timer.start` with a fresh
+  total instead.
+- **`remaining` goes stale while a timer runs.** It is only refreshed on state transitions, so a timer started 10
+  minutes ago still reports the full 30. Derive the live remainder from `finishes_at`:
+
+  ```jinja
+  {{ ((as_timestamp(state_attr('timer.youtube_allowance_kids', 'finishes_at')) - as_timestamp(now())) | int) + 1800 }}
+  ```
+
+  An **idle** timer reports `remaining: None`, so guard that branch — a paused timer is the one case where
+  `remaining` is accurate.
+
+#### The dashboard section
+
+[`homeassistant/dashboard/admin-adguard-section.yaml`](homeassistant/dashboard/admin-adguard-section.yaml) is a
+section for a `type: sections` view: a status line, the allowance timer (shown only while one runs), and Allow /
++30 min / Block buttons.
+
+Paste it into the `sections:` list of a view via the dashboard's three-dot menu → **Raw configuration editor**.
+
+![AdGuard section on the Admin dashboard: status line, allowance countdown, and the three buttons][dashboard-screenshot]
+
+[dashboard-screenshot]: docs/dashboard-admin-section.png
+
+The status line is a markdown card — the only built-in card that renders templates, and the reason the dashboard can
+say "Blocked" instead of showing a raw `on`.
+
+> [!IMPORTANT]
+> **If the kids have their own Home Assistant logins, put this section on an admin-only dashboard.** Set
+> **Admin only** on the dashboard (Settings → Dashboards → ⋮ → Edit), i.e. `require_admin: true`, so it stays out of
+> their sidebar entirely. Dropping these buttons on a shared family dashboard hands them the off switch.
+>
+> Be clear about what that buys you, though: `require_admin` controls *visibility*, not permission. It hides the
+> dashboard; it does not stop a logged-in non-admin from calling `script.youtube_kids_allow` over the REST or
+> WebSocket API. The only real boundary is an account they cannot log in to at all.
+>
+> Then again — if your kid reverse-engineers a service call to get YouTube back, give them YouTube. Anyone who can
+> find their way to `script.youtube_kids_allow` found the DNS-over-HTTPS toggle in their browser settings weeks ago,
+> and is only doing this for the sport.
+
+#### Example: block on school nights
 
 ```yaml
 automation:
@@ -164,41 +229,52 @@ automation:
               - condition: trigger
                 id: block
             sequence:
-              - action: switch.turn_on
-                target:
-                  entity_id: switch.youtube_blocked_for_kids
+              - action: script.youtube_kids_block
           - conditions:
               - condition: trigger
                 id: unblock
             sequence:
-              - action: switch.turn_off
-                target:
-                  entity_id: switch.youtube_blocked_for_kids
+              - action: script.youtube_kids_allow
 ```
 
-### Example: 30 minutes of YouTube, then block again
+Both scripts cancel a running allowance, so a schedule always wins over a half-used +30.
 
-A script you can put on a dashboard button or trigger by voice. `mode: restart` means pressing it twice extends the
-window instead of ending it early.
+### Option B — REST commands (fallback)
 
-```yaml
-script:
-  youtube_kids_timeout:
-    alias: "Kids: 30 minutes of YouTube"
-    mode: restart
-    sequence:
-      - action: switch.turn_off
-        target:
-          entity_id: switch.youtube_blocked_for_kids
-      - delay: "00:30:00"
-      - action: switch.turn_on
-        target:
-          entity_id: switch.youtube_blocked_for_kids
-```
+Use this when you do not run the AdGuard Home integration, or when you want Home Assistant to read the list's real
+state back out of AdGuard instead of assuming it. It calls the API directly:
+`POST /control/filtering/set_url` with `{"data": {"enabled": true|false, …}}`.
 
-> [!NOTE]
-> A `delay` does not survive a Home Assistant restart. If the restart risk matters, drive the re-block from a
-> [timer helper](https://www.home-assistant.io/integrations/timer/) and an automation on `timer.finished` instead.
+1. Copy [`homeassistant/packages/adguard_youtube_kids.yaml`](homeassistant/packages/adguard_youtube_kids.yaml) to
+   `<config>/packages/adguard_youtube_kids.yaml`.
+2. Load packages as in Option A.
+3. Add your AdGuard Home login to `<config>/secrets.yaml`
+   (see [`homeassistant/secrets.example.yaml`](homeassistant/secrets.example.yaml)):
+
+   ```yaml
+   adguard_username: admin
+   adguard_password: your-adguard-password
+   ```
+
+4. Edit the two `EDIT ME` values at the top of the package: your AdGuard Home base URL
+   (`http://homeassistant.local:3000` by default) and, if you forked this repo, the blocklist URL.
+5. **Developer tools → YAML → Check configuration**, then restart Home Assistant.
+
+| Entity | Purpose |
+| --- | --- |
+| `switch.youtube_blocked_for_kids` | **On = YouTube is blocked** for the Kids client. |
+| `sensor.adguard_youtube_kids_filter` | The list's real state in AdGuard (`on` / `off` / `unknown`), polled every 60 s. |
+| `rest_command.adguard_youtube_kids_filter_set` | Enables/disables the list; takes `enabled: true\|false`. |
+| `rest_command.adguard_filters_refresh` | Forces AdGuard Home to re-download its lists. |
+
+`unknown` on the sensor (and an unavailable switch) means AdGuard Home has no list with that exact URL — check for a
+typo, or that you updated the URL after forking.
+
+Running several AdGuard servers? Duplicate the `rest_command` once per server and call both from the switch; unlike
+Option A, nothing fans out for you.
+
+After the first install, reload just this config with **Developer tools → Actions** → `rest.reload`,
+`rest_command.reload` and `template.reload` instead of restarting.
 
 ### Without Home Assistant
 
@@ -254,15 +330,18 @@ Blocking DNS cannot stop a device that does not use your DNS server. If the kids
 ## Repository layout
 
 ```text
-youtube-kids.txt                                   the blocklist
-homeassistant/packages/adguard_youtube_kids.yaml   HA package: rest_command + REST sensor + switch
-homeassistant/secrets.example.yaml                 credentials to copy into secrets.yaml
-scripts/validate_blocklist.py                      syntax + client-scope validator
-scripts/check_ha_package.py                        parses the HA package and renders its templates
-tests/                                             tests for both scripts and for what they check
-requirements-dev.txt                               tooling used by the tests and CI
-.pre-commit-config.yaml                            Markdown, YAML, blocklist and package hooks
-.github/workflows/ci.yml                           validate, test, lint
+youtube-kids.txt                                     the blocklist
+homeassistant/packages/youtube_kids_native.yaml      option A: AdGuard integration (recommended)
+homeassistant/packages/adguard_youtube_kids.yaml     option B: rest_command + REST sensor + switch
+homeassistant/dashboard/admin-adguard-section.yaml   dashboard section for the controls
+homeassistant/secrets.example.yaml                   credentials for option B
+docs/dashboard-admin-section.png                     screenshot used by the README
+scripts/validate_blocklist.py                        syntax + client-scope validator
+scripts/check_ha_package.py                          parses the option B package, renders its templates
+tests/                                               tests for both scripts and for what they check
+requirements-dev.txt                                 tooling used by the tests and CI
+.pre-commit-config.yaml                              Markdown, YAML, blocklist and package hooks
+.github/workflows/ci.yml                             validate, test, lint
 ```
 
 ## Development

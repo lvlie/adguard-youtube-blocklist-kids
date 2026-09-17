@@ -1,0 +1,187 @@
+---
+# Home Assistant package: control the YouTube blocklist through the official
+# AdGuard Home integration. This is the recommended option -- see the README.
+#
+# Requires: the AdGuard Home integration configured in
+# Settings -> Devices & Services. No credentials are needed here; the
+# integration already holds them.
+#
+# The adguard.enable_url / adguard.disable_url services take the blocklist URL
+# and apply to EVERY loaded AdGuard Home config entry, so a primary/replica
+# pair is kept in step without any extra configuration.
+#
+# Install:
+#   1. Copy this file to <config>/packages/youtube_kids_native.yaml
+#   2. Make sure configuration.yaml contains:
+#        homeassistant:
+#          packages: !include_dir_named packages
+#   3. If you forked this repository, change the blocklist URL below
+#   4. Check the configuration, then restart Home Assistant
+#
+# Everything in here can equally be created from the UI (Helpers, Scripts,
+# Automations). Do not do both -- you would end up with duplicate entities.
+
+input_boolean:
+  youtube_blocked_for_kids:
+    name: YouTube blocked for Kids
+    icon: mdi:youtube
+
+timer:
+  youtube_allowance_kids:
+    name: YouTube allowance Kids
+    icon: mdi:timer-sand
+    duration: "00:30:00"
+    # Survive a Home Assistant restart instead of silently dropping the allowance.
+    restore: true
+
+script:
+  youtube_kids_allow:
+    alias: "YouTube Kids: allow (no time limit)"
+    description: >-
+      Unblocks YouTube for the Kids client indefinitely and cancels any running
+      allowance timer, so it will not be re-blocked automatically.
+    icon: mdi:play-circle
+    mode: single
+    sequence:
+      - alias: Cancel any running allowance
+        action: timer.cancel
+        target:
+          entity_id: timer.youtube_allowance_kids
+      - alias: Unblock YouTube
+        action: input_boolean.turn_off
+        target:
+          entity_id: input_boolean.youtube_blocked_for_kids
+
+  youtube_kids_block:
+    alias: "YouTube Kids: block now"
+    description: >-
+      Blocks YouTube for the Kids client immediately and cancels any running
+      allowance timer.
+    icon: mdi:block-helper
+    mode: single
+    sequence:
+      - alias: Cancel any running allowance
+        action: timer.cancel
+        target:
+          entity_id: timer.youtube_allowance_kids
+      - alias: Block YouTube
+        action: input_boolean.turn_on
+        target:
+          entity_id: input_boolean.youtube_blocked_for_kids
+
+  youtube_kids_extend_30:
+    alias: "YouTube Kids: +30 minutes"
+    description: >-
+      Grants 30 more minutes of YouTube. Idle timer: starts a fresh 30 minutes.
+      Running timer: restarts it at remaining + 30, so pressing twice gives 60,
+      three times 90.
+    icon: mdi:timer-plus
+    # Queued so two quick presses both count instead of the second being dropped.
+    mode: queued
+    max: 10
+    sequence:
+      - alias: Unblock YouTube
+        action: input_boolean.turn_off
+        target:
+          entity_id: input_boolean.youtube_blocked_for_kids
+      - choose:
+          # timer.change is deliberately NOT used here: it refuses to extend a
+          # timer beyond its configured duration ("Not possible to change timer
+          # ... beyond duration"), which is exactly what a second press needs.
+          #
+          # The remaining time comes from finishes_at, not from the remaining
+          # attribute: remaining is only refreshed on state transitions, so it
+          # still reads the full duration while the timer counts down.
+          - alias: "Running: restart at remaining + 30 minutes"
+            conditions:
+              - condition: state
+                entity_id: timer.youtube_allowance_kids
+                state: active
+            sequence:
+              - action: timer.start
+                target:
+                  entity_id: timer.youtube_allowance_kids
+                data:
+                  duration: >-
+                    {{ ((as_timestamp(state_attr('timer.youtube_allowance_kids', 'finishes_at'))
+                       - as_timestamp(now())) | int) + 1800 }}
+          - alias: "Paused: remaining is accurate while paused, so use it"
+            conditions:
+              - condition: state
+                entity_id: timer.youtube_allowance_kids
+                state: paused
+            sequence:
+              - action: timer.start
+                target:
+                  entity_id: timer.youtube_allowance_kids
+                data:
+                  duration: >-
+                    {{ ((state_attr('timer.youtube_allowance_kids', 'remaining')
+                       | as_timedelta).total_seconds() | int) + 1800 }}
+        default:
+          - alias: "Idle: start a fresh 30 minutes"
+            action: timer.start
+            target:
+              entity_id: timer.youtube_allowance_kids
+            data:
+              duration: "00:30:00"
+
+automation:
+  - id: kids_sync_youtube_blocklist_to_adguard
+    alias: "Kids: sync YouTube blocklist to AdGuard"
+    description: >-
+      Mirrors input_boolean.youtube_blocked_for_kids into AdGuard Home by
+      enabling or disabling the YouTube blocklist. Also re-asserts on Home
+      Assistant start so the toggle and AdGuard cannot drift apart.
+    mode: queued
+    max: 10
+    triggers:
+      - trigger: state
+        entity_id: input_boolean.youtube_blocked_for_kids
+        to: "on"
+        id: block
+      - trigger: state
+        entity_id: input_boolean.youtube_blocked_for_kids
+        to: "off"
+        id: unblock
+      - trigger: homeassistant
+        event: start
+        id: startup
+    actions:
+      - choose:
+          - alias: "Blocked: enable the list"
+            conditions:
+              - condition: state
+                entity_id: input_boolean.youtube_blocked_for_kids
+                state: "on"
+            sequence:
+              - action: adguard.enable_url
+                data:
+                  url: https://raw.githubusercontent.com/lvlie/adguard-youtube-blocklist-kids/main/youtube-kids.txt
+          - alias: "Not blocked: disable the list"
+            conditions:
+              - condition: state
+                entity_id: input_boolean.youtube_blocked_for_kids
+                state: "off"
+            sequence:
+              - action: adguard.disable_url
+                data:
+                  url: https://raw.githubusercontent.com/lvlie/adguard-youtube-blocklist-kids/main/youtube-kids.txt
+
+  - id: kids_block_youtube_when_allowance_finishes
+    alias: "Kids: block YouTube when the allowance timer finishes"
+    description: >-
+      When the YouTube allowance runs out, block YouTube again. Only
+      timer.finished fires this -- timer.cancel raises timer.cancelled instead,
+      so pressing Allow or Block cancels the allowance without re-blocking here.
+    mode: single
+    triggers:
+      - trigger: event
+        event_type: timer.finished
+        event_data:
+          entity_id: timer.youtube_allowance_kids
+    actions:
+      - alias: "Allowance is up: block YouTube again"
+        action: input_boolean.turn_on
+        target:
+          entity_id: input_boolean.youtube_blocked_for_kids

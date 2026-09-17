@@ -5,3 +5,6 @@
 *.yml text eol=lf
 *.yaml text eol=lf
 *.py  text eol=lf
+
+# Binary assets -- never apply the text/eol rules above.
+*.png binary
