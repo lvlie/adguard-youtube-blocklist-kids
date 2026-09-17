@@ -1,0 +1,43 @@
+---
+name: Something else is wrong
+description: Tooling, the Home Assistant package, or the documentation
+labels: [bug]
+body:
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - Home Assistant package
+        - Validation script / CI
+        - Documentation
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: what_happened
+    attributes:
+      label: What happened
+      description: What you expected, what happened instead, and how to reproduce it.
+    validations:
+      required: true
+
+  - type: textarea
+    id: versions
+    attributes:
+      label: Versions
+      placeholder: |
+        AdGuard Home: v0.107.x
+        Home Assistant: 2026.9.x
+    validations:
+      required: false
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs
+      description: Home Assistant log lines or command output, if any.
+      render: text
+    validations:
+      required: false

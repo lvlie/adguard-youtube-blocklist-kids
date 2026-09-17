@@ -1,0 +1,21 @@
+---
+extends: default
+
+rules:
+  line-length:
+    max: 125
+    allow-non-breakable-words: true
+    allow-non-breakable-inline-mappings: true
+  # GitHub Actions uses `on:`, which YAML 1.1 reads as a boolean.
+  truthy:
+    check-keys: false
+  comments:
+    min-spaces-from-content: 1
+  braces:
+    max-spaces-inside: 1
+  brackets:
+    max-spaces-inside: 1
+
+ignore: |
+  node_modules/
+  .venv/

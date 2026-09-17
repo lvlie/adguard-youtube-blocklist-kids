@@ -1,0 +1,20 @@
+---
+config:
+  default: true
+  # Long URLs and tables are more readable unwrapped.
+  MD013:
+    line_length: 125
+    code_blocks: false
+    tables: false
+  # Repeated headings are fine under different parents (e.g. "Added" per release).
+  MD024:
+    siblings_only: true
+  # GitHub alerts ([!NOTE], [!IMPORTANT]) are blockquotes without a following blank line rule.
+  MD028: false
+  # Inline HTML is occasionally needed for anchors.
+  MD033: false
+globs:
+  - "**/*.md"
+ignores:
+  - "node_modules/**"
+  - ".git/**"

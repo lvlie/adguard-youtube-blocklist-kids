@@ -1,0 +1,104 @@
+---
+# Home Assistant package: switch the "YouTube blocklist for Kids" filter list
+# in AdGuard Home on and off.
+#
+# Install:
+#   1. Copy this file to <config>/packages/adguard_youtube_kids.yaml
+#   2. Make sure configuration.yaml contains:
+#        homeassistant:
+#          packages: !include_dir_named packages
+#   3. Add adguard_username / adguard_password to <config>/secrets.yaml
+#      (see homeassistant/secrets.example.yaml in this repository)
+#   4. Edit the two EDIT ME values below, then restart Home Assistant
+#
+# The official AdGuard Home integration cannot toggle an individual filter
+# list, so this package talks to the AdGuard Home REST API directly.
+
+# EDIT ME (1/2): base URL of your AdGuard Home admin interface, no trailing slash.
+# EDIT ME (2/2): the blocklist URL, exactly as it appears in AdGuard Home.
+# Both values are repeated below because Home Assistant YAML has no variables
+# that are shared between integrations.
+
+rest_command:
+  adguard_youtube_kids_filter_set:
+    url: "http://homeassistant.local:3000/control/filtering/set_url"
+    method: post
+    content_type: "application/json"
+    username: !secret adguard_username
+    password: !secret adguard_password
+    timeout: 10
+    # verify_ssl: false  # uncomment when AdGuard Home uses a self-signed certificate
+    payload: >-
+      {
+        "url": "https://raw.githubusercontent.com/lvlie/adguard-youtube-blocklist-kids/main/youtube-kids.txt",
+        "whitelist": false,
+        "data": {
+          "enabled": {{ 'true' if enabled else 'false' }},
+          "name": "YouTube blocklist for Kids",
+          "url": "https://raw.githubusercontent.com/lvlie/adguard-youtube-blocklist-kids/main/youtube-kids.txt"
+        }
+      }
+
+  # Optional: pull a fresh copy of the list instead of waiting for the
+  # automatic update interval.
+  adguard_filters_refresh:
+    url: "http://homeassistant.local:3000/control/filtering/refresh"
+    method: post
+    content_type: "application/json"
+    username: !secret adguard_username
+    password: !secret adguard_password
+    timeout: 30
+    payload: '{"whitelist": false}'
+
+rest:
+  - resource: "http://homeassistant.local:3000/control/filtering/status"
+    method: GET
+    authentication: basic
+    username: !secret adguard_username
+    password: !secret adguard_password
+    scan_interval: 60
+    timeout: 10
+    sensor:
+      - name: "AdGuard YouTube Kids filter"
+        unique_id: adguard_youtube_kids_filter
+        icon: mdi:youtube
+        # Reports "on" when the list is installed and enabled, "off" when it is
+        # installed and disabled, "unknown" when AdGuard Home does not have a
+        # list with this exact URL.
+        value_template: >-
+          {% set url = 'https://raw.githubusercontent.com/lvlie/adguard-youtube-blocklist-kids/main/youtube-kids.txt' %}
+          {% set matches = (value_json.filters | default([], true))
+             | selectattr('url', 'eq', url) | list %}
+          {% if matches | count == 0 %}
+            unknown
+          {% else %}
+            {{ 'on' if matches[0].enabled else 'off' }}
+          {% endif %}
+
+template:
+  - switch:
+      - name: "YouTube blocked for Kids"
+        unique_id: youtube_blocked_for_kids
+        icon: >-
+          {{ 'mdi:youtube-tv' if is_state('sensor.adguard_youtube_kids_filter', 'on')
+             else 'mdi:youtube' }}
+        # On  = the blocklist is enabled  = YouTube is blocked for the Kids client
+        # Off = the blocklist is disabled = YouTube resolves normally again
+        state: "{{ is_state('sensor.adguard_youtube_kids_filter', 'on') }}"
+        availability: >-
+          {{ states('sensor.adguard_youtube_kids_filter') not in
+             ['unknown', 'unavailable', 'none'] }}
+        turn_on:
+          - action: rest_command.adguard_youtube_kids_filter_set
+            data:
+              enabled: true
+          - action: homeassistant.update_entity
+            target:
+              entity_id: sensor.adguard_youtube_kids_filter
+        turn_off:
+          - action: rest_command.adguard_youtube_kids_filter_set
+            data:
+              enabled: false
+          - action: homeassistant.update_entity
+            target:
+              entity_id: sensor.adguard_youtube_kids_filter

@@ -1,0 +1,44 @@
+---
+name: A domain slipped through
+description: YouTube still loads on the Kids client
+labels: [blocklist]
+body:
+  - type: input
+    id: domain
+    attributes:
+      label: Domain
+      description: The domain that was allowed, exactly as it appears in the AdGuard Home query log.
+      placeholder: rr3---sn-example.googlevideo.com
+    validations:
+      required: true
+
+  - type: input
+    id: source
+    attributes:
+      label: Device or app
+      placeholder: YouTube app on the living room TV
+    validations:
+      required: true
+
+  - type: textarea
+    id: query_log
+    attributes:
+      label: Query log entry
+      description: >
+        AdGuard Home -> Query log, filtered on the Kids client. Include the client name and whether a
+        rule matched -- that tells us whether the domain is missing or the client is not matching.
+      render: text
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Checks
+      options:
+        - label: The device is listed under a persistent client named exactly `Kids`
+          required: true
+        - label: The blocklist is enabled in AdGuard Home and shows ~20 rules
+          required: true
+        - label: The device is not using DNS-over-HTTPS, a VPN, or a hard-coded DNS server
+          required: false
