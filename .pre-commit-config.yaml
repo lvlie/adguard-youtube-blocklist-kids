@@ -46,8 +46,11 @@ repos:
       - id: check-ha-package
         name: check Home Assistant package
         description: Parse the package and render its templates before Home Assistant has to.
-        entry: python3 scripts/check_ha_package.py
-        language: system
+        entry: python scripts/check_ha_package.py
+        # language: python so the hook brings its own pyyaml/jinja2 -- `system`
+        # would depend on whatever the machine (or the CI runner) happens to have.
+        language: python
+        additional_dependencies: ["pyyaml>=6.0.3", "jinja2>=3.1.6"]
         files: '^homeassistant/packages/.*\.yaml$'
         pass_filenames: true
 
