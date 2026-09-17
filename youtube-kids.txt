@@ -1,0 +1,68 @@
+! Title: YouTube blocklist for the AdGuard Home client "Kids"
+! Description: Blocks YouTube (including YouTube Kids) for a single AdGuard Home client. Every rule is scoped with $client, so no other client on the network is affected.
+! Homepage: https://github.com/lvlie/adguard-youtube-blocklist-kids
+! License: https://github.com/lvlie/adguard-youtube-blocklist-kids/blob/main/LICENSE
+! Version: 1.0.0
+! Last modified: 2026-09-17T00:00:00Z
+! Expires: 1 day
+! Client: Kids
+!
+! ---------------------------------------------------------------------------
+! HOW THIS LIST WORKS
+!
+! AdGuard Home filter lists are global: a list is either on or off for the
+! entire server. Per-client blocking is expressed inside the rules with the
+! $client modifier, which matches a *persistent* client by the name you gave
+! it under Settings -> Client settings.
+!
+! Every rule below therefore ends in:
+!
+!     $client='Kids',important
+!
+!   $client='Kids'  Limits the rule to the client named exactly "Kids".
+!                   Every other client keeps resolving these domains normally.
+!   important       Makes the rule win over allowlist rules in other lists.
+!                   To override it deliberately, write an exception rule that
+!                   is also important, for example:
+!                       @@||youtube.com^$client='Kids',important
+!
+! If your client is not called "Kids", replace the name everywhere below and
+! in the "! Client:" header above -- scripts/validate_blocklist.py reads that
+! header and fails if any rule targets a different client.
+!
+! ||domain^ also covers every subdomain, so ||youtube.com^ already blocks
+! m.youtube.com, music.youtube.com, tv.youtube.com, kids.youtube.com and so on.
+! ---------------------------------------------------------------------------
+!
+! --- YouTube web and app ---------------------------------------------------
+||youtube.com^$client='Kids',important
+||youtu.be^$client='Kids',important
+||yt.be^$client='Kids',important
+||youtube-nocookie.com^$client='Kids',important
+||youtubekids.com^$client='Kids',important
+||youtubeeducation.com^$client='Kids',important
+!
+! --- API endpoints used by the apps and smart TV clients -------------------
+||youtubei.googleapis.com^$client='Kids',important
+||youtube.googleapis.com^$client='Kids',important
+||youtubeembeddedplayer.googleapis.com^$client='Kids',important
+!
+! --- Thumbnails and channel avatars ---------------------------------------
+! Only YouTube imagery lives here; blocking it stops thumbnail grids from
+! rendering in apps that cache the HTML but not the pictures.
+||ytimg.com^$client='Kids',important
+||yt3.ggpht.com^$client='Kids',important
+||yt4.ggpht.com^$client='Kids',important
+!
+! --- Country aliases -------------------------------------------------------
+! These redirect to youtube.com, which is already blocked, but blocking them
+! outright avoids a confusing "connecting..." pause first. Add your own as
+! needed; they follow the same pattern.
+||youtube.nl^$client='Kids',important
+||youtube.be^$client='Kids',important
+||youtube.de^$client='Kids',important
+||youtube.fr^$client='Kids',important
+||youtube.co.uk^$client='Kids',important
+||youtube.ie^$client='Kids',important
+||youtube.es^$client='Kids',important
+||youtube.it^$client='Kids',important
