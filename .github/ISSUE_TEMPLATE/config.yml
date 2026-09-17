@@ -1,0 +1,9 @@
+---
+blank_issues_enabled: true
+contact_links:
+  - name: AdGuard Home filtering syntax
+    url: https://github.com/AdguardTeam/AdGuardHome/wiki/Hosts-Blocklists
+    about: Reference for the rule syntax and the $client modifier.
+  - name: Home Assistant RESTful integration
+    url: https://www.home-assistant.io/integrations/rest/
+    about: Reference for the REST sensor and rest_command used by the package.

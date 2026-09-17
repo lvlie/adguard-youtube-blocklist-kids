@@ -1,0 +1,30 @@
+---
+name: Something else broke
+description: A non-YouTube service stopped working, or another client is affected
+labels: [blocklist, false-positive]
+body:
+  - type: input
+    id: service
+    attributes:
+      label: What broke
+      placeholder: Google Photos on the Kids tablet
+    validations:
+      required: true
+
+  - type: input
+    id: client
+    attributes:
+      label: Which AdGuard Home client
+      description: If this is a client other than `Kids`, say so -- that would be a rule scoping bug.
+      placeholder: Kids
+    validations:
+      required: true
+
+  - type: textarea
+    id: query_log
+    attributes:
+      label: Query log entry
+      description: The blocked request, including the rule that matched and the list it came from.
+      render: text
+    validations:
+      required: true
